@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>My Shopify App</title>
+    <script src="https://unpkg.com/@shopify/app-bridge@3.0.0"></script>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            padding: 20px;
+            max-width: 800px;
+            margin: 0 auto;
+        }
+    </style>
+</head>
+<body>
+    <h1>Welcome to My Shopify App</h1>
+    <p>This content is served via GitHub Pages through Shopify's App Proxy.</p>
+    
+    <div id="shop-data"></div>
+    
+    <script>
+        // Initialize Shopify App Bridge if we're in an iframe
+        if (window.self !== window.top) {
+            const app = window['app-bridge'].createApp({
+                apiKey: new URLSearchParams(window.location.search).get('api_key'),
+                host: new URLSearchParams(window.location.search).get('host'),
+                forceRedirect: true
+            });
+        }
+        
+        // Display shop information if available in query params
+        const params = new URLSearchParams(window.location.search);
+        if (params.get('shop')) {
+            document.getElementById('shop-data').innerHTML = `
+                <h2>Shop Information</h2>
+                <p>Shop: ${params.get('shop')}</p>
+                <p>Path: ${params.get('path_prefix')}</p>
+                <p>Timestamp: ${new Date().toLocaleString()}</p>
+            `;
+        }
+    </script>
+</body>
+</html>
