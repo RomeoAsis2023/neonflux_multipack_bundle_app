@@ -1,28 +1,52 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Proxy Test</title>
+    <title>My Shopify App</title>
     <meta charset="utf-8">
-    <meta http-equiv="Content-Security-Policy" content="frame-ancestors https://*.myshopify.com https://admin.shopify.com">
+    <script src="https://cdn.shopify.com/s/assets/external/app.js"></script>
+    <script type="text/javascript">
+        // Initialize the Shopify App
+        Shopify.init({
+            apiKey: 'a990be1d4450f032a55916c366ee38c2',
+            shopOrigin: 'https://neon-flux-test.myshopify.com'
+        });
+        
+        // Handle OAuth redirect
+        if (window.location.search.includes('code=')) {
+            // Extract the authorization code from URL
+            const urlParams = new URLSearchParams(window.location.search);
+            const authCode = urlParams.get('code');
+            
+            // In a real app, you would send this to your backend for token exchange
+            console.log('Authorization code:', authCode);
+            
+            // Redirect to clean URL after capturing code
+            window.location.href = window.location.pathname;
+        }
+    </script>
 </head>
 <body>
-    <h1>Proxy Test Page</h1>
-    <div id="params"></div>
+    <!-- Your app content here -->
+    <h1>Shopify App Installed Successfully</h1>
+    <div id="app-status">Loading app...</div>
     
     <script>
-        // Display all query parameters
-        const params = new URLSearchParams(window.location.search);
-        let html = '<h2>Query Parameters</h2><ul>';
-        
-        for (const [key, value] of params) {
-            html += `<li><strong>${key}:</strong> ${value}</li>`;
-        }
-        
-        html += '</ul>';
-        document.getElementById('params').innerHTML = html;
-        
-        // Check if we're in an iframe
-        console.log('Is iframe?', window.self !== window.top);
+        ShopifyApp.ready(function() {
+            document.getElementById('app-status').textContent = 'App is ready!';
+            
+            // Initialize the title bar
+            ShopifyApp.Bar.initialize({
+                title: 'My GitHub Pages App',
+                buttons: {
+                    secondary: {
+                        label: 'Admin',
+                        callback: function() {
+                            ShopifyApp.redirectToShopifyAdmin();
+                        }
+                    }
+                }
+            });
+        });
     </script>
 </body>
 </html>
