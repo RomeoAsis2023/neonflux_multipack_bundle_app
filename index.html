@@ -5,331 +5,168 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Neon Flux Multipack App</title>
     <style>
-        :root {
-            --primary: #5c6ac4;
-            --error: #d32f2f;
-            --success: #50b83c;
-            --text: #212b36;
-        }
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-            color: var(--text);
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             line-height: 1.6;
             max-width: 800px;
             margin: 0 auto;
             padding: 20px;
+            color: #212b36;
         }
         .status-card {
             border-radius: 8px;
             padding: 25px;
             margin: 20px 0;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-        }
-        #app-loading {
             background: #f9fafb;
-            border-left: 4px solid var(--primary);
+            border-left: 4px solid #5c6ac4;
         }
-        #app-error {
+        .error-card {
             background: #fbeae5;
-            border-left: 4px solid var(--error);
-            display: none;
+            border-left: 4px solid #d32f2f;
         }
-        #app-content {
-            display: none;
-        }
-        .loading-step {
-            margin: 10px 0;
-            display: flex;
-            align-items: center;
-        }
-        .loading-step.completed {
-            color: var(--success);
-        }
-        .loading-step.failed {
-            color: var(--error);
-        }
-        .loading-step-icon {
-            margin-right: 10px;
-            font-weight: bold;
+        .success-card {
+            background: #f5faf5;
+            border-left: 4px solid #50b83c;
         }
         button {
-            background-color: var(--primary);
+            background-color: #5c6ac4;
             color: white;
             border: none;
             padding: 10px 20px;
             border-radius: 4px;
             cursor: pointer;
-            font-size: 16px;
             margin-right: 10px;
-            margin-top: 15px;
         }
-        button:hover {
-            opacity: 0.9;
-        }
-        #debug-info {
+        #admin-redirect-message {
+            display: none;
             margin-top: 20px;
-            font-family: monospace;
-            font-size: 14px;
-            background: #f4f6f8;
             padding: 15px;
+            background: #fff8e1;
             border-radius: 4px;
-            overflow-x: auto;
         }
     </style>
 </head>
 <body>
-    <div id="app-loading" class="status-card">
-        <h2>Initializing Neon Flux Multipack App</h2>
-        <div id="loading-steps">
-            <div class="loading-step" id="step-sdk">
-                <span class="loading-step-icon">⏳</span>
-                <span>Loading Shopify SDK...</span>
-            </div>
-            <div class="loading-step" id="step-init">
-                <span class="loading-step-icon">—</span>
-                <span>Initializing Shopify Context</span>
-            </div>
-            <div class="loading-step" id="step-ready">
-                <span class="loading-step-icon">—</span>
-                <span>Waiting for Ready State</span>
-            </div>
-            <div class="loading-step" id="step-ui">
-                <span class="loading-step-icon">—</span>
-                <span>Configuring Interface</span>
-            </div>
-            <div class="loading-step" id="step-data">
-                <span class="loading-step-icon">—</span>
-                <span>Loading Shop Data</span>
-            </div>
+    <div id="app-container">
+        <div id="initial-loading" class="status-card">
+            <h2>Loading Neon Flux Multipack App</h2>
+            <p>Please wait while we initialize the application...</p>
         </div>
-    </div>
 
-    <div id="app-error" class="status-card">
-        <h2>Application Initialization Failed</h2>
-        <p id="error-message">We couldn't load required Shopify components.</p>
-        
-        <h3>Try These Solutions:</h3>
-        <ol>
-            <li><strong>Refresh the page</strong> - Sometimes temporary network issues occur</li>
-            <li><strong>Disable browser extensions</strong> - Ad blockers may interfere with loading</li>
-            <li><strong>Try a different browser</strong> - Some browsers have stricter security settings</li>
-            <li><strong>Clear cache and cookies</strong> - Outdated resources might cause problems</li>
-        </ol>
-        
-        <button onclick="window.location.reload()">Refresh Page</button>
-        <button onclick="attemptAlternativeLoad()">Try Alternative Load Method</button>
-        <button onclick="showDebugInfo()">Show Technical Details</button>
-        
-        <div id="debug-info" style="display: none;"></div>
-    </div>
+        <div id="wrong-context" class="error-card" style="display: none;">
+            <h2>Incorrect Loading Context</h2>
+            <p>This application must be loaded within the Shopify Admin interface.</p>
+            <div id="admin-redirect-message">
+                <p>You will be automatically redirected to the correct location in <span id="countdown">5</span> seconds.</p>
+            </div>
+            <button id="manual-redirect">Take Me to Shopify Admin</button>
+        </div>
 
-    <div id="app-content">
-        <h1>Welcome to Neon Flux Multipack</h1>
-        <div id="shop-data"></div>
+        <div id="app-content" class="success-card" style="display: none;">
+            <h1>Welcome to Neon Flux Multipack</h1>
+            <div id="shop-data"></div>
+        </div>
     </div>
 
     <script>
         // Configuration
         const CONFIG = {
-            shopOrigin: 'https://neon-flux-test.myshopify.com',
+            shopDomain: 'neon-flux-test.myshopify.com',
             apiKey: 'a990be1d4450f032a55916c366ee38c2',
-            sdkUrls: [
-                'https://cdn.shopify.com/s/assets/external/app.js',
-                'https://shopify.github.io/themekit/assets/external/app.js',
-                'https://static.zdassets.com/ekr/shopify_app.js'
-            ],
-            maxAttempts: 3,
-            attemptDelay: 1500
-        };
-
-        // State
-        let currentAttempt = 0;
-        let fallbackAttempted = false;
-        let debugData = {
-            loadAttempts: [],
-            environment: {},
-            diagnostics: {}
+            redirectDelay: 5000 // 5 seconds
         };
 
         // DOM Elements
         const elements = {
-            loading: document.getElementById('app-loading'),
-            error: document.getElementById('app-error'),
-            content: document.getElementById('app-content'),
-            errorMessage: document.getElementById('error-message'),
-            debugInfo: document.getElementById('debug-info'),
-            steps: {
-                sdk: document.getElementById('step-sdk'),
-                init: document.getElementById('step-init'),
-                ready: document.getElementById('step-ready'),
-                ui: document.getElementById('step-ui'),
-                data: document.getElementById('step-data')
-            },
+            loading: document.getElementById('initial-loading'),
+            wrongContext: document.getElementById('wrong-context'),
+            appContent: document.getElementById('app-content'),
+            manualRedirect: document.getElementById('manual-redirect'),
+            adminRedirect: document.getElementById('admin-redirect-message'),
+            countdown: document.getElementById('countdown'),
             shopData: document.getElementById('shop-data')
         };
 
-        // Update loading step
-        function updateStep(stepId, status, message = '') {
-            const step = elements.steps[stepId];
-            step.classList.remove('completed', 'failed');
-            
-            if (status === 'completed') {
-                step.classList.add('completed');
-                step.querySelector('.loading-step-icon').textContent = '✓';
-            } else if (status === 'failed') {
-                step.classList.add('failed');
-                step.querySelector('.loading-step-icon').textContent = '✗';
+        // Check if we're in the correct context
+        function isInShopifyAdmin() {
+            // Check if we're in an iframe
+            if (window.self === window.top) {
+                return false;
             }
             
-            if (message) {
-                step.querySelector('span:last-child').textContent = message;
+            // Check for Shopify admin URL patterns
+            try {
+                return window.location !== window.parent.location && 
+                       /admin\.shopify\.com/.test(window.parent.location.hostname);
+            } catch (e) {
+                // Cross-origin error means we're likely in Shopify admin
+                return true;
             }
         }
 
-        // Collect debug information
-        function collectDebugInfo() {
-            debugData.environment = {
-                userAgent: navigator.userAgent,
-                platform: navigator.platform,
-                cookiesEnabled: navigator.cookieEnabled,
-                online: navigator.onLine,
-                screen: `${window.screen.width}x${window.screen.height}`,
-                inIframe: window.self !== window.top
-            };
-
-            debugData.diagnostics = {
-                shopifyDefined: typeof Shopify !== 'undefined',
-                shopifyAppDefined: typeof ShopifyApp !== 'undefined',
-                scriptsLoaded: Array.from(document.scripts).map(script => script.src),
-                timing: performance.now()
-            };
-
-            return debugData;
+        // Redirect to proper admin URL
+        function redirectToAdmin() {
+            const adminUrl = `https://${CONFIG.shopDomain}/admin/apps/neonflux_bundle_app`;
+            window.top.location.href = adminUrl;
         }
 
-        // Show debug info
-        function showDebugInfo() {
-            const data = collectDebugInfo();
-            elements.debugInfo.style.display = 'block';
-            elements.debugInfo.innerHTML = `
-                <h4>Debug Information</h4>
-                <pre>${JSON.stringify(data, null, 2)}</pre>
-                <h4>Load Attempts</h4>
-                <ul>
-                    ${data.loadAttempts.map(attempt => `
-                        <li>${new Date(attempt.timestamp).toLocaleTimeString()}: 
-                        ${attempt.method} - ${attempt.success ? '✓' : '✗'} 
-                        ${attempt.error || ''}</li>
-                    `).join('')}
-                </ul>
-            `;
-        }
-
-        // Load SDK with multiple fallbacks
-        function loadShopifySDK() {
-            return new Promise((resolve, reject) => {
-                currentAttempt++;
-                const url = CONFIG.sdkUrls[Math.min(currentAttempt - 1, CONFIG.sdkUrls.length - 1)];
+        // Initialize countdown for automatic redirect
+        function startCountdown() {
+            let seconds = 5;
+            elements.countdown.textContent = seconds;
+            
+            const timer = setInterval(() => {
+                seconds--;
+                elements.countdown.textContent = seconds;
                 
-                debugData.loadAttempts.push({
-                    timestamp: Date.now(),
-                    method: `Attempt ${currentAttempt}: ${url}`,
-                    success: false
-                });
-
-                updateStep('sdk', 'pending', `Loading Shopify SDK (Attempt ${currentAttempt})...`);
-
-                const script = document.createElement('script');
-                script.src = url;
-                script.onload = () => {
-                    if (typeof Shopify !== 'undefined') {
-                        debugData.loadAttempts[debugData.loadAttempts.length - 1].success = true;
-                        updateStep('sdk', 'completed', 'Shopify SDK loaded successfully');
-                        resolve();
-                    } else {
-                        script.onerror();
-                    }
-                };
-                script.onerror = () => {
-                    debugData.loadAttempts[debugData.loadAttempts.length - 1].error = 'Script loaded but Shopify not defined';
-                    if (currentAttempt < CONFIG.maxAttempts) {
-                        setTimeout(() => loadShopifySDK().then(resolve).catch(reject), CONFIG.attemptDelay);
-                    } else {
-                        reject(new Error(`Failed to load Shopify SDK after ${CONFIG.maxAttempts} attempts`));
-                    }
-                };
-                document.head.appendChild(script);
-            });
+                if (seconds <= 0) {
+                    clearInterval(timer);
+                    redirectToAdmin();
+                }
+            }, 1000);
         }
 
-        // Alternative load method using JSONP
-        function attemptAlternativeLoad() {
-            if (fallbackAttempted) {
-                elements.errorMessage.textContent = 'All available load methods have been attempted. Please contact support.';
+        // Main initialization function
+        async function initializeApp() {
+            // First verify we're in the correct context
+            if (!isInShopifyAdmin()) {
+                elements.loading.style.display = 'none';
+                elements.wrongContext.style.display = 'block';
+                elements.adminRedirect.style.display = 'block';
+                startCountdown();
                 return;
             }
-            
-            fallbackAttempted = true;
-            elements.errorMessage.textContent = 'Trying alternative load method...';
-            
-            // Create a temporary callback function
-            window.shopifySDKLoaded = function() {
-                if (typeof Shopify !== 'undefined') {
-                    initializeShopifyApp();
-                } else {
-                    elements.errorMessage.textContent = 'Alternative load method failed. Please refresh or try another browser.';
-                }
-                delete window.shopifySDKLoaded;
-            };
-            
-            // Load via JSONP
-            const script = document.createElement('script');
-            script.src = `https://cdn.shopify.com/s/assets/external/app.js?callback=shopifySDKLoaded&v=${Date.now()}`;
-            document.head.appendChild(script);
-        }
 
-        // Initialize Shopify App
-        async function initializeShopifyApp() {
+            // Load the Shopify SDK
             try {
-                updateStep('init', 'pending');
+                await loadShopifySDK();
                 
-                // Initialize Shopify
+                // Initialize Shopify App
                 Shopify.init({
                     apiKey: CONFIG.apiKey,
-                    shopOrigin: CONFIG.shopOrigin,
-                    debug: true
+                    shopOrigin: `https://${CONFIG.shopDomain}`
                 });
-                updateStep('init', 'completed');
-                
+
                 // Wait for ready state
-                updateStep('ready', 'pending');
                 await new Promise((resolve) => {
                     ShopifyApp.ready(resolve);
                 });
-                updateStep('ready', 'completed');
-                
+
                 // Set up UI
-                updateStep('ui', 'pending');
                 ShopifyApp.Bar.initialize({
                     title: 'Neon Flux Multipack',
                     buttons: {
                         primary: {
                             label: 'Refresh',
                             callback: () => window.location.reload()
-                        },
-                        secondary: {
-                            label: 'Admin',
-                            callback: () => ShopifyApp.redirectToShopifyAdmin()
                         }
                     }
                 });
-                updateStep('ui', 'completed');
-                
+
                 // Load shop data
-                updateStep('data', 'pending');
                 try {
-                    const session = await new Promise((resolve, reject) => {
-                        ShopifyApp.getShopifySession(resolve, reject);
+                    const session = await new Promise((resolve) => {
+                        ShopifyApp.getShopifySession(resolve);
                     });
                     
                     elements.shopData.innerHTML = `
@@ -337,39 +174,50 @@
                         <p><strong>Shop Domain:</strong> ${session.shop}</p>
                         <p><strong>User:</strong> ${session.user || 'Not available'}</p>
                     `;
-                    updateStep('data', 'completed');
                 } catch (error) {
-                    updateStep('data', 'failed', 'Limited functionality - partial data loaded');
-                    elements.shopData.innerHTML = `
-                        <div style="background: #fff8e1; padding: 10px; border-radius: 4px;">
-                            <p>Note: Running in limited mode. Some features may not be available.</p>
-                        </div>
-                    `;
+                    console.warn('Could not load shop data:', error);
                 }
-                
+
                 // Show app content
                 elements.loading.style.display = 'none';
-                elements.content.style.display = 'block';
-                
+                elements.appContent.style.display = 'block';
+
             } catch (error) {
-                updateStep('init', 'failed');
+                console.error('App initialization failed:', error);
                 elements.loading.style.display = 'none';
-                elements.error.style.display = 'block';
-                elements.errorMessage.textContent = `Initialization failed: ${error.message}`;
-                collectDebugInfo();
+                elements.wrongContext.style.display = 'block';
+                elements.wrongContext.innerHTML += `
+                    <div style="margin-top: 20px; padding: 15px; background: white; border-radius: 4px;">
+                        <p><strong>Technical Details:</strong> ${error.message}</p>
+                    </div>
+                `;
             }
         }
 
-        // Start the initialization process
-        loadShopifySDK()
-            .then(initializeShopifyApp)
-            .catch((error) => {
-                updateStep('sdk', 'failed', 'Failed to load Shopify SDK');
-                elements.loading.style.display = 'none';
-                elements.error.style.display = 'block';
-                elements.errorMessage.textContent = error.message;
-                collectDebugInfo();
+        // Load Shopify SDK with error handling
+        function loadShopifySDK() {
+            return new Promise((resolve, reject) => {
+                const script = document.createElement('script');
+                script.src = 'https://cdn.shopify.com/s/assets/external/app.js';
+                script.onload = () => {
+                    if (typeof Shopify !== 'undefined') {
+                        resolve();
+                    } else {
+                        reject(new Error('Shopify object not available after loading SDK'));
+                    }
+                };
+                script.onerror = () => {
+                    reject(new Error('Failed to load Shopify SDK'));
+                };
+                document.head.appendChild(script);
             });
+        }
+
+        // Event listeners
+        elements.manualRedirect.addEventListener('click', redirectToAdmin);
+
+        // Start the app
+        initializeApp();
     </script>
 </body>
 </html>
