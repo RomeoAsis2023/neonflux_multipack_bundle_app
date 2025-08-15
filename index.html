@@ -39,6 +39,14 @@
             background: #fff8e1;
             border-radius: 4px;
         }
+        .debug-info {
+            font-family: monospace;
+            background: #f4f6f8;
+            padding: 15px;
+            border-radius: 4px;
+            margin-top: 20px;
+            font-size: 14px;
+        }
     </style>
 </head>
 <body>
@@ -50,34 +58,35 @@
 
         <div id="wrong-context" class="error-card" style="display: none;">
             <h2>App Not Loaded Properly</h2>
-            <p>This application must be accessed through the Shopify Admin.</p>
-            
             <div id="redirect-info">
-                <p>Please install and access this app through your Shopify Admin dashboard.</p>
-                <p>If you've already installed the app, try these steps:</p>
+                <p>This app must be accessed through your Shopify Admin dashboard.</p>
+                <p><strong>Correct access method:</strong></p>
                 <ol>
-                    <li>Go to your <a href="#" id="admin-link">Shopify Admin</a></li>
-                    <li>Navigate to the "Apps" section</li>
+                    <li>Log in to your <a id="admin-link" href="#">Shopify Admin</a></li>
+                    <li>Go to the "Apps" section</li>
                     <li>Click on "Neon Flux Multipack"</li>
                 </ol>
+                <p>Or use this <a id="direct-link" href="#">direct app link</a></p>
             </div>
-            
             <button id="refresh-button">Refresh Page</button>
+            <div class="debug-info">
+                <p><strong>Debug Information:</strong></p>
+                <p id="debug-output"></p>
+            </div>
         </div>
 
         <div id="app-content" style="display: none;">
             <!-- App content will be loaded here -->
-			My App Content here
+			My App Here...
         </div>
     </div>
 
     <script>
-        // Configuration - UPDATE THESE VALUES
+        // Configuration - MUST UPDATE THESE
         const CONFIG = {
             shopDomain: 'neon-flux-test.myshopify.com',
             apiKey: 'a990be1d4450f032a55916c366ee38c2',
-            // Get this from your Shopify Partner Dashboard > App Setup > App URL
-            appHandle: 'neonflux_bundle_app' // e.g. 'neon-flux-multipack'
+            appHandle: 'neonflux_bundle_app' // From your app URL
         };
 
         // DOM Elements
@@ -86,48 +95,77 @@
             wrongContext: document.getElementById('wrong-context'),
             appContent: document.getElementById('app-content'),
             refreshButton: document.getElementById('refresh-button'),
-            adminLink: document.getElementById('admin-link')
+            adminLink: document.getElementById('admin-link'),
+            directLink: document.getElementById('direct-link'),
+            debugOutput: document.getElementById('debug-output')
         };
 
-        // Set admin link
+        // Set admin links
         elements.adminLink.href = `https://${CONFIG.shopDomain}/admin`;
+        elements.directLink.href = getCorrectAppUrl();
 
-        // Check if we're in the correct context
-        function isInShopifyAdmin() {
-            // Check URL parameters first
+        // Debug output
+        function logDebugInfo() {
             const urlParams = new URLSearchParams(window.location.search);
-            if (urlParams.has('host') && urlParams.has('shop')) {
-                return true;
-            }
-            
-            // Check if we're in an iframe
-            try {
-                return window.self !== window.top && 
-                      /admin\.shopify\.com/.test(window.parent.location.hostname);
-            } catch (e) {
-                // Cross-origin error means we're likely in Shopify admin
-                return true;
-            }
+            const debugInfo = {
+                currentUrl: window.location.href,
+                urlParams: {
+                    host: urlParams.get('host'),
+                    shop: urlParams.get('shop'),
+                    hmac: urlParams.get('hmac'),
+                    timestamp: urlParams.get('timestamp')
+                },
+                inIframe: window.self !== window.top,
+                shopifyDefined: typeof Shopify !== 'undefined',
+                shopifyAppDefined: typeof ShopifyApp !== 'undefined'
+            };
+            elements.debugOutput.textContent = JSON.stringify(debugInfo, null, 2);
         }
 
-        // Get the correct app URL
-        function getAppAdminUrl() {
-            // Get from URL parameters if available
+        // Get the properly encoded app URL
+        function getCorrectAppUrl() {
             const urlParams = new URLSearchParams(window.location.search);
             const host = urlParams.get('host');
             
             if (host) {
-                return `https://${host}/apps/${CONFIG.appHandle}`;
+                // Decode the base64 host parameter
+                try {
+                    const decodedHost = atob(host.replace(/-/g, '+').replace(/_/g, '/'));
+                    return `https://${decodedHost}/apps/${CONFIG.appHandle}`;
+                } catch (e) {
+                    console.error('Error decoding host parameter:', e);
+                }
             }
             
             // Fallback to standard URL structure
             return `https://${CONFIG.shopDomain}/admin/apps/${CONFIG.appHandle}`;
         }
 
+        // Check if we're in the correct context
+        function isInShopifyContext() {
+            const urlParams = new URLSearchParams(window.location.search);
+            
+            // Must have these parameters to be valid
+            if (!urlParams.has('host') || !urlParams.has('shop')) {
+                return false;
+            }
+            
+            // Verify the host parameter is properly encoded
+            try {
+                const host = urlParams.get('host');
+                atob(host.replace(/-/g, '+').replace(/_/g, '/'));
+                return true;
+            } catch (e) {
+                return false;
+            }
+        }
+
         // Main initialization function
         async function initializeApp() {
+            logDebugInfo();
+            
             // First verify we're in the correct context
-            if (!isInShopifyAdmin()) {
+            if (!isInShopifyContext()) {
                 elements.loading.style.display = 'none';
                 elements.wrongContext.style.display = 'block';
                 return;
@@ -137,10 +175,14 @@
             try {
                 await loadShopifySDK();
                 
+                // Get the shop origin from URL parameters
+                const urlParams = new URLSearchParams(window.location.search);
+                const shop = urlParams.get('shop');
+                
                 // Initialize Shopify App
                 Shopify.init({
                     apiKey: CONFIG.apiKey,
-                    shopOrigin: `https://${CONFIG.shopDomain}`
+                    shopOrigin: `https://${shop}`
                 });
 
                 // Wait for ready state
@@ -165,7 +207,6 @@
                         ShopifyApp.getShopifySession(resolve);
                     });
                     
-                    // Your app logic here
                     elements.appContent.innerHTML = `
                         <div class="status-card">
                             <h1>Welcome to Neon Flux Multipack</h1>
@@ -189,7 +230,7 @@
                 elements.wrongContext.innerHTML += `
                     <div style="margin-top: 20px; padding: 15px; background: white; border-radius: 4px;">
                         <p><strong>Error:</strong> ${error.message}</p>
-                        <p>Try accessing the app through <a href="${getAppAdminUrl()}">this direct link</a></p>
+                        <p>Try accessing the app through <a href="${getCorrectAppUrl()}">this direct link</a></p>
                     </div>
                 `;
             }
