@@ -24,10 +24,6 @@
             background: #fbeae5;
             border-left: 4px solid #d32f2f;
         }
-        .success-card {
-            background: #f5faf5;
-            border-left: 4px solid #50b83c;
-        }
         button {
             background-color: #5c6ac4;
             color: white;
@@ -35,10 +31,9 @@
             padding: 10px 20px;
             border-radius: 4px;
             cursor: pointer;
-            margin-right: 10px;
+            margin-top: 15px;
         }
-        #admin-redirect-message {
-            display: none;
+        #redirect-info {
             margin-top: 20px;
             padding: 15px;
             background: #fff8e1;
@@ -54,26 +49,35 @@
         </div>
 
         <div id="wrong-context" class="error-card" style="display: none;">
-            <h2>Incorrect Loading Context</h2>
-            <p>This application must be loaded within the Shopify Admin interface.</p>
-            <div id="admin-redirect-message">
-                <p>You will be automatically redirected to the correct location in <span id="countdown">5</span> seconds.</p>
+            <h2>App Not Loaded Properly</h2>
+            <p>This application must be accessed through the Shopify Admin.</p>
+            
+            <div id="redirect-info">
+                <p>Please install and access this app through your Shopify Admin dashboard.</p>
+                <p>If you've already installed the app, try these steps:</p>
+                <ol>
+                    <li>Go to your <a href="#" id="admin-link">Shopify Admin</a></li>
+                    <li>Navigate to the "Apps" section</li>
+                    <li>Click on "Neon Flux Multipack"</li>
+                </ol>
             </div>
-            <button id="manual-redirect">Take Me to Shopify Admin</button>
+            
+            <button id="refresh-button">Refresh Page</button>
         </div>
 
-        <div id="app-content" class="success-card" style="display: none;">
-            <h1>Welcome to Neon Flux Multipack</h1>
-            <div id="shop-data"></div>
+        <div id="app-content" style="display: none;">
+            <!-- App content will be loaded here -->
+			My App Content here
         </div>
     </div>
 
     <script>
-        // Configuration
+        // Configuration - UPDATE THESE VALUES
         const CONFIG = {
             shopDomain: 'neon-flux-test.myshopify.com',
             apiKey: 'a990be1d4450f032a55916c366ee38c2',
-            redirectDelay: 5000 // 5 seconds
+            // Get this from your Shopify Partner Dashboard > App Setup > App URL
+            appHandle: 'neonflux_bundle_app' // e.g. 'neon-flux-multipack'
         };
 
         // DOM Elements
@@ -81,49 +85,43 @@
             loading: document.getElementById('initial-loading'),
             wrongContext: document.getElementById('wrong-context'),
             appContent: document.getElementById('app-content'),
-            manualRedirect: document.getElementById('manual-redirect'),
-            adminRedirect: document.getElementById('admin-redirect-message'),
-            countdown: document.getElementById('countdown'),
-            shopData: document.getElementById('shop-data')
+            refreshButton: document.getElementById('refresh-button'),
+            adminLink: document.getElementById('admin-link')
         };
+
+        // Set admin link
+        elements.adminLink.href = `https://${CONFIG.shopDomain}/admin`;
 
         // Check if we're in the correct context
         function isInShopifyAdmin() {
-            // Check if we're in an iframe
-            if (window.self === window.top) {
-                return false;
+            // Check URL parameters first
+            const urlParams = new URLSearchParams(window.location.search);
+            if (urlParams.has('host') && urlParams.has('shop')) {
+                return true;
             }
             
-            // Check for Shopify admin URL patterns
+            // Check if we're in an iframe
             try {
-                return window.location !== window.parent.location && 
-                       /admin\.shopify\.com/.test(window.parent.location.hostname);
+                return window.self !== window.top && 
+                      /admin\.shopify\.com/.test(window.parent.location.hostname);
             } catch (e) {
                 // Cross-origin error means we're likely in Shopify admin
                 return true;
             }
         }
 
-        // Redirect to proper admin URL
-        function redirectToAdmin() {
-            const adminUrl = `https://${CONFIG.shopDomain}/admin/apps/neonflux_bundle_app`;
-            window.top.location.href = adminUrl;
-        }
-
-        // Initialize countdown for automatic redirect
-        function startCountdown() {
-            let seconds = 5;
-            elements.countdown.textContent = seconds;
+        // Get the correct app URL
+        function getAppAdminUrl() {
+            // Get from URL parameters if available
+            const urlParams = new URLSearchParams(window.location.search);
+            const host = urlParams.get('host');
             
-            const timer = setInterval(() => {
-                seconds--;
-                elements.countdown.textContent = seconds;
-                
-                if (seconds <= 0) {
-                    clearInterval(timer);
-                    redirectToAdmin();
-                }
-            }, 1000);
+            if (host) {
+                return `https://${host}/apps/${CONFIG.appHandle}`;
+            }
+            
+            // Fallback to standard URL structure
+            return `https://${CONFIG.shopDomain}/admin/apps/${CONFIG.appHandle}`;
         }
 
         // Main initialization function
@@ -132,8 +130,6 @@
             if (!isInShopifyAdmin()) {
                 elements.loading.style.display = 'none';
                 elements.wrongContext.style.display = 'block';
-                elements.adminRedirect.style.display = 'block';
-                startCountdown();
                 return;
             }
 
@@ -169,10 +165,14 @@
                         ShopifyApp.getShopifySession(resolve);
                     });
                     
-                    elements.shopData.innerHTML = `
-                        <h3>Shop Information</h3>
-                        <p><strong>Shop Domain:</strong> ${session.shop}</p>
-                        <p><strong>User:</strong> ${session.user || 'Not available'}</p>
+                    // Your app logic here
+                    elements.appContent.innerHTML = `
+                        <div class="status-card">
+                            <h1>Welcome to Neon Flux Multipack</h1>
+                            <h3>Shop Information</h3>
+                            <p><strong>Shop Domain:</strong> ${session.shop}</p>
+                            <p><strong>User:</strong> ${session.user || 'Not available'}</p>
+                        </div>
                     `;
                 } catch (error) {
                     console.warn('Could not load shop data:', error);
@@ -188,7 +188,8 @@
                 elements.wrongContext.style.display = 'block';
                 elements.wrongContext.innerHTML += `
                     <div style="margin-top: 20px; padding: 15px; background: white; border-radius: 4px;">
-                        <p><strong>Technical Details:</strong> ${error.message}</p>
+                        <p><strong>Error:</strong> ${error.message}</p>
+                        <p>Try accessing the app through <a href="${getAppAdminUrl()}">this direct link</a></p>
                     </div>
                 `;
             }
@@ -214,7 +215,7 @@
         }
 
         // Event listeners
-        elements.manualRedirect.addEventListener('click', redirectToAdmin);
+        elements.refreshButton.addEventListener('click', () => window.location.reload());
 
         // Start the app
         initializeApp();
