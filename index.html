@@ -26,136 +26,236 @@
             border-radius: 4px;
             margin-bottom: 20px;
         }
+        .retry-button {
+            background-color: #1976d2;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            margin-top: 20px;
+        }
     </style>
 </head>
 <body>
     <div id="app-loading">
         <h2>Loading your Shopify app...</h2>
-        <p>Please wait while we initialize the application.</p>
+        <div id="loading-steps">
+            <p>Initializing application environment...</p>
+        </div>
     </div>
     
     <div id="app-error" style="display: none;">
         <div class="error-message">
             <h2>Error Loading Application</h2>
             <p id="error-details"></p>
-            <button onclick="window.location.reload()">Refresh Page</button>
+            <div id="troubleshooting"></div>
+            <button class="retry-button" onclick="window.location.reload()">Refresh Page</button>
+            <button class="retry-button" onclick="retryManualLoad()">Load Shopify SDK Manually</button>
         </div>
     </div>
     
     <div id="app-content">
-        <!-- Your app content will load here -->
         <h1>Welcome to Neon Flux Multipack</h1>
         <div id="shop-data"></div>
     </div>
 
-    <!-- Load Shopify embed script dynamically with error handling -->
     <script>
-        (function() {
-            // Configuration
-            const config = {
-                shopOrigin: 'https://neon-flux-test.myshopify.com',
-                apiKey: 'a990be1d4450f032a55916c366ee38c2',
-                debugMode: true
+        // Configuration
+        const config = {
+            shopOrigin: 'https://neon-flux-test.myshopify.com',
+            apiKey: 'a990be1d4450f032a55916c366ee38c2',
+            debugMode: true,
+            maxRetries: 3,
+            retryDelay: 1000
+        };
+        
+        // State management
+        let retryCount = 0;
+        
+        // DOM elements
+        const appLoading = document.getElementById('app-loading');
+        const appError = document.getElementById('app-error');
+        const appContent = document.getElementById('app-content');
+        const errorDetails = document.getElementById('error-details');
+        const troubleshooting = document.getElementById('troubleshooting');
+        const loadingSteps = document.getElementById('loading-steps');
+        const shopData = document.getElementById('shop-data');
+        
+        // Update loading status
+        function updateLoadingStatus(message) {
+            loadingSteps.innerHTML += `<p>✓ ${message}</p>`;
+        }
+        
+        // Show error with troubleshooting
+        function showError(error, additionalInfo = '') {
+            console.error('App Error:', error);
+            appLoading.style.display = 'none';
+            errorDetails.textContent = error.message;
+            appError.style.display = 'block';
+            
+            let troubleshootingHtml = '<h3>Troubleshooting Steps:</h3><ul>';
+            
+            if (error.message.includes('Shopify object not available')) {
+                troubleshootingHtml += `
+                    <li>Check if your browser is blocking third-party scripts</li>
+                    <li>Disable any ad blockers or privacy extensions</li>
+                    <li>Ensure you're accessing this from within Shopify Admin</li>
+                    <li>Verify your network connection is stable</li>`;
+            }
+            
+            if (additionalInfo) {
+                troubleshootingHtml += `<li>${additionalInfo}</li>`;
+            }
+            
+            troubleshootingHtml += '</ul>';
+            troubleshooting.innerHTML = troubleshootingHtml;
+        }
+        
+        // Load Shopify SDK with multiple fallback methods
+        async function loadShopifySDK() {
+            updateLoadingStatus('Loading Shopify SDK...');
+            
+            return new Promise((resolve, reject) => {
+                // Method 1: Standard CDN load
+                const script = document.createElement('script');
+                script.src = 'https://cdn.shopify.com/s/assets/external/app.js';
+                script.id = 'shopify-sdk-script';
+                
+                script.onload = () => {
+                    if (typeof Shopify !== 'undefined') {
+                        updateLoadingStatus('Shopify SDK loaded successfully');
+                        resolve();
+                    } else {
+                        // Method 2: Try alternative CDN URL
+                        retryWithAlternativeURL(resolve, reject);
+                    }
+                };
+                
+                script.onerror = () => {
+                    // Method 3: Try loading from different CDN endpoint
+                    retryWithAlternativeURL(resolve, reject);
+                };
+                
+                document.head.appendChild(script);
+            });
+        }
+        
+        // Try alternative loading methods
+        function retryWithAlternativeURL(resolve, reject) {
+            retryCount++;
+            
+            if (retryCount > config.maxRetries) {
+                reject(new Error('Shopify object not available after loading SDK'));
+                return;
+            }
+            
+            updateLoadingStatus(`Retrying SDK load (attempt ${retryCount}/${config.maxRetries})...`);
+            
+            // Try alternative CDN URL
+            const fallbackScript = document.createElement('script');
+            fallbackScript.src = `https://cdn.shopify.com/s/assets/external/app.js?retry=${retryCount}`;
+            fallbackScript.id = 'shopify-sdk-fallback';
+            
+            fallbackScript.onload = () => {
+                if (typeof Shopify !== 'undefined') {
+                    updateLoadingStatus('Shopify SDK loaded via fallback');
+                    resolve();
+                } else {
+                    setTimeout(() => retryWithAlternativeURL(resolve, reject), config.retryDelay);
+                }
             };
             
-            // DOM elements
-            const appLoading = document.getElementById('app-loading');
-            const appError = document.getElementById('app-error');
-            const appContent = document.getElementById('app-content');
-            const errorDetails = document.getElementById('error-details');
-            const shopData = document.getElementById('shop-data');
+            fallbackScript.onerror = () => {
+                setTimeout(() => retryWithAlternativeURL(resolve, reject), config.retryDelay);
+            };
             
-            // Load the Shopify SDK
-            function loadShopifySDK() {
-                return new Promise((resolve, reject) => {
-                    const script = document.createElement('script');
-                    script.src = 'https://cdn.shopify.com/s/assets/external/app.js';
-                    script.onload = resolve;
-                    script.onerror = () => reject(new Error('Failed to load Shopify SDK'));
-                    document.head.appendChild(script);
-                });
-            }
+            document.head.appendChild(fallbackScript);
+        }
+        
+        // Manual load function for user retry
+        function retryManualLoad() {
+            const manualScript = document.createElement('script');
+            manualScript.src = 'https://cdn.shopify.com/s/assets/external/app.js?manual=' + Date.now();
+            manualScript.id = 'shopify-sdk-manual';
             
-            // Initialize the Shopify App
-            async function initializeApp() {
-                try {
-                    // Step 1: Load the Shopify SDK
-                    await loadShopifySDK();
-                    
-                    // Step 2: Verify Shopify object is available
-                    if (typeof Shopify === 'undefined') {
-                        throw new Error('Shopify object not available after loading SDK');
-                    }
-                    
-                    // Step 3: Initialize the Shopify App
-                    Shopify.init({
-                        apiKey: config.apiKey,
-                        shopOrigin: config.shopOrigin,
-                        debug: config.debugMode
-                    });
-                    
-                    // Step 4: Wait for ShopifyApp to be ready
-                    await new Promise((resolve) => {
-                        ShopifyApp.ready(resolve);
-                    });
-                    
-                    // Step 5: Set up the UI
-                    ShopifyApp.Bar.initialize({
-                        title: 'Neon Flux Multipack',
-                        buttons: {
-                            primary: {
-                                label: 'Refresh',
-                                callback: () => window.location.reload()
-                            },
-                            secondary: {
-                                label: 'Admin',
-                                callback: () => ShopifyApp.redirectToShopifyAdmin()
-                            }
-                        }
-                    });
-                    
-                    // Step 6: Load shop data
-                    try {
-                        const session = await new Promise((resolve, reject) => {
-                            ShopifyApp.getShopifySession(resolve, reject);
-                        });
-                        
-                        shopData.innerHTML = `
-                            <h3>Shop Information</h3>
-                            <p><strong>Shop Domain:</strong> ${session.shop}</p>
-                            <p><strong>User:</strong> ${session.user || 'Not available'}</p>
-                        `;
-                    } catch (error) {
-                        console.warn('Could not load shop data:', error);
-                        shopData.innerHTML = `<p>Note: Some features may be limited without full session data</p>`;
-                    }
-                    
-                    // Show the app content
-                    appLoading.style.display = 'none';
-                    appContent.style.display = 'block';
-                    
-                } catch (error) {
-                    // Handle any errors in the initialization process
-                    console.error('App initialization failed:', error);
-                    appLoading.style.display = 'none';
-                    errorDetails.textContent = error.message;
-                    appError.style.display = 'block';
-                    
-                    // Additional troubleshooting for common issues
-                    if (error.message.includes('Failed to load Shopify SDK')) {
-                        errorDetails.innerHTML += `<br><br>Possible causes:
-                            <ul>
-                                <li>Ad blocker preventing script loading</li>
-                                <li>Network connectivity issues</li>
-                                <li>Shopify CDN unavailable</li>
-                            </ul>`;
-                    }
+            manualScript.onload = () => {
+                if (typeof Shopify !== 'undefined') {
+                    initializeApp();
+                } else {
+                    showError(new Error('Still unable to load Shopify SDK'), 
+                             'The SDK failed to load even after manual retry. Please contact support.');
                 }
-            }
+            };
             
-            // Start the app initialization
-            initializeApp();
-        })();
+            document.head.appendChild(manualScript);
+        }
+        
+        // Main initialization function
+        async function initializeApp() {
+            try {
+                // Load SDK
+                await loadShopifySDK();
+                
+                // Initialize Shopify App
+                updateLoadingStatus('Initializing Shopify context...');
+                Shopify.init({
+                    apiKey: config.apiKey,
+                    shopOrigin: config.shopOrigin,
+                    debug: config.debugMode
+                });
+                
+                // Wait for ready state
+                updateLoadingStatus('Waiting for Shopify ready state...');
+                await new Promise((resolve) => {
+                    ShopifyApp.ready(resolve);
+                });
+                
+                // Set up UI
+                updateLoadingStatus('Configuring application interface...');
+                ShopifyApp.Bar.initialize({
+                    title: 'Neon Flux Multipack',
+                    buttons: {
+                        primary: {
+                            label: 'Refresh',
+                            callback: () => window.location.reload()
+                        },
+                        secondary: {
+                            label: 'Admin',
+                            callback: () => ShopifyApp.redirectToShopifyAdmin()
+                        }
+                    }
+                });
+                
+                // Load shop data
+                try {
+                    updateLoadingStatus('Loading shop data...');
+                    const session = await new Promise((resolve, reject) => {
+                        ShopifyApp.getShopifySession(resolve, reject);
+                    });
+                    
+                    shopData.innerHTML = `
+                        <h3>Shop Information</h3>
+                        <p><strong>Shop Domain:</strong> ${session.shop}</p>
+                        <p><strong>User:</strong> ${session.user || 'Not available'}</p>
+                    `;
+                } catch (error) {
+                    console.warn('Could not load shop data:', error);
+                    shopData.innerHTML = `<p>Note: Some features may be limited without full session data</p>`;
+                }
+                
+                // Show app content
+                appLoading.style.display = 'none';
+                appContent.style.display = 'block';
+                
+            } catch (error) {
+                showError(error);
+            }
+        }
+        
+        // Start the app initialization
+        initializeApp();
     </script>
 </body>
 </html>
