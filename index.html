@@ -2,48 +2,52 @@
 <html>
 <head>
     <title>My Shopify App</title>
-    <meta charset="utf-8">
     <script src="https://cdn.shopify.com/s/assets/external/app.js"></script>
-    <script type="text/javascript">
-        // Initialize the Shopify App
+    <script>
+        // Check for OAuth callback
+        const urlParams = new URLSearchParams(window.location.search);
+        const shop = urlParams.get('shop') || 'neon-flux-test.myshopify.com';
+        
+        // Initialize Shopify App
         Shopify.init({
             apiKey: 'a990be1d4450f032a55916c366ee38c2',
-            shopOrigin: 'https://neon-flux-test.myshopify.com'
+            shopOrigin: `https://${shop}`
         });
-        
+
         // Handle OAuth redirect
-        if (window.location.search.includes('code=')) {
-            // Extract the authorization code from URL
-            const urlParams = new URLSearchParams(window.location.search);
-            const authCode = urlParams.get('code');
-            
-            // In a real app, you would send this to your backend for token exchange
-            console.log('Authorization code:', authCode);
-            
-            // Redirect to clean URL after capturing code
-            window.location.href = window.location.pathname;
+        if (urlParams.has('code')) {
+            // In a real app, you would send this to a backend
+            console.log('OAuth code received:', urlParams.get('code'));
+            // Remove code from URL
+            window.history.replaceState({}, document.title, window.location.pathname);
         }
     </script>
 </head>
 <body>
-    <!-- Your app content here -->
-    <h1>Shopify App Installed Successfully</h1>
-    <div id="app-status">Loading app...</div>
-    
+    <h1>Shopify App</h1>
+    <div id="app-content">
+        <p>App is loading...</p>
+        <button id="auth-button" style="display:none;">Authenticate</button>
+    </div>
+
     <script>
-        ShopifyApp.ready(function() {
-            document.getElementById('app-status').textContent = 'App is ready!';
+        ShopifyApp.ready(() => {
+            document.getElementById('auth-button').style.display = 'block';
             
-            // Initialize the title bar
-            ShopifyApp.Bar.initialize({
-                title: 'My GitHub Pages App',
-                buttons: {
-                    secondary: {
-                        label: 'Admin',
-                        callback: function() {
-                            ShopifyApp.redirectToShopifyAdmin();
-                        }
-                    }
+            document.getElementById('auth-button').onclick = () => {
+                // This will trigger the OAuth flow
+                ShopifyApp.redirectToAuthorization({
+                    redirect_uri: window.location.href.split('?')[0]
+                });
+            };
+
+            // Check if we have a valid session
+            ShopifyApp.getShopifySession((session) => {
+                if (session) {
+                    document.getElementById('app-content').innerHTML = `
+                        <h2>Authenticated!</h2>
+                        <p>Shop: ${session.shop}</p>
+                    `;
                 }
             });
         });
