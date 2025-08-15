@@ -49,27 +49,27 @@
         </div>
 
         <div id="wrong-context" class="error-card" style="display: none;">
-            <h2>App Access Required</h2>
+            <h2>App Not Loaded in Shopify Admin</h2>
             <div id="redirect-info">
-                <p>To use this app, please:</p>
+                <p><strong>To access this app:</strong></p>
                 <ol>
-                    <li>Go to your <a id="admin-link" href="#">Shopify Admin</a></li>
-                    <li>Click on "Apps" in the left sidebar</li>
-                    <li>Select "Neon Flux Multipack"</li>
+                    <li>Log in to your <a id="admin-link" href="#">Shopify Admin</a></li>
+                    <li>Go to the "Apps" section</li>
+                    <li>Click on "Neon Flux Multipack"</li>
                 </ol>
-                <p>If you don't see the app listed, you may need to install it first.</p>
+                <p>If you don't see the app listed, you may need to install it first from the Shopify App Store.</p>
             </div>
             <button id="refresh-button">Refresh Page</button>
         </div>
 
         <div id="app-content" style="display: none;">
             <!-- App content will be loaded here -->
-			my app content here...
+			My App Content
         </div>
     </div>
 
     <script>
-        // Configuration - MUST UPDATE THESE
+        // Configuration - MUST UPDATE THIS
         const CONFIG = {
             shopDomain: 'neon-flux-test.myshopify.com',
             apiKey: 'a990be1d4450f032a55916c366ee38c2'
@@ -84,30 +84,30 @@
             refreshButton: document.getElementById('refresh-button')
         };
 
-        // Set admin link
+        // Set admin link to your store's apps page
         elements.adminLink.href = `https://${CONFIG.shopDomain}/admin/apps`;
 
-        // Check if we're in the correct embedded context
-        function isInEmbeddedContext() {
-            // Check for required Shopify params
+        // Check if we're in the correct Shopify embedded app context
+        function isInShopifyContext() {
+            // Check for required Shopify embedded app parameters
             const urlParams = new URLSearchParams(window.location.search);
-            const hasShopifyParams = urlParams.has('hmac') && 
-                                  urlParams.has('host') && 
-                                  urlParams.has('shop');
+            const hasRequiredParams = urlParams.has('hmac') && 
+                                   urlParams.has('host') && 
+                                   urlParams.has('shop');
             
-            // Check if we're in an iframe
+            // Check if we're in an iframe (Shopify embeds apps in iframes)
             try {
-                return hasShopifyParams && window.self !== window.top;
+                return hasRequiredParams && window.self !== window.top;
             } catch (e) {
                 // Cross-origin error means we're likely in an iframe
-                return hasShopifyParams;
+                return hasRequiredParams;
             }
         }
 
         // Main initialization function
         async function initializeApp() {
             // First verify we're in the correct context
-            if (!isInEmbeddedContext()) {
+            if (!isInShopifyContext()) {
                 elements.loading.style.display = 'none';
                 elements.wrongContext.style.display = 'block';
                 return;
