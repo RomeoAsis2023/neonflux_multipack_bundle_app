@@ -47,6 +47,9 @@
             margin-top: 20px;
             font-size: 14px;
         }
+        #countdown {
+            font-weight: bold;
+        }
     </style>
 </head>
 <body>
@@ -57,17 +60,11 @@
         </div>
 
         <div id="wrong-context" class="error-card" style="display: none;">
-            <h2>App Not Loaded in Shopify Admin</h2>
+            <h2>Redirecting to Shopify Admin</h2>
             <div id="redirect-info">
                 <p>This app must be accessed through your Shopify Admin dashboard.</p>
-                <p><strong>To fix this:</strong></p>
-                <ol>
-                    <li>Log in to your <a id="admin-link" href="#">Shopify Admin</a></li>
-                    <li>Go to the "Apps" section</li>
-                    <li>Click on "Neon Flux Multipack"</li>
-                </ol>
-                <p>Or click this button to open the app properly:</p>
-                <button id="open-in-shopify">Open in Shopify Admin</button>
+                <p>You will be automatically redirected in <span id="countdown">5</span> seconds...</p>
+                <p>Or <a id="direct-link" href="#">click here</a> if you're not redirected.</p>
             </div>
             <div class="debug-info">
                 <p><strong>Debug Information:</strong></p>
@@ -77,6 +74,7 @@
 
         <div id="app-content" style="display: none;">
             <!-- App content will be loaded here -->
+			My App Here...
         </div>
     </div>
 
@@ -93,17 +91,14 @@
             loading: document.getElementById('initial-loading'),
             wrongContext: document.getElementById('wrong-context'),
             appContent: document.getElementById('app-content'),
-            adminLink: document.getElementById('admin-link'),
-            openInShopify: document.getElementById('open-in-shopify'),
+            directLink: document.getElementById('direct-link'),
+            countdown: document.getElementById('countdown'),
             debugOutput: document.getElementById('debug-output')
         };
 
-        // Set admin link
-        elements.adminLink.href = `https://${CONFIG.shopDomain}/admin`;
-
         // Decode base64 URL-safe string
         function decodeBase64UrlSafe(str) {
-            return atob(str.replace(/-/g, '+').replace(/_/g, '/'));
+            return decodeURIComponent(escape(atob(str.replace(/-/g, '+').replace(/_/g, '/'))));
         }
 
         // Get the correct embedded app URL
@@ -141,6 +136,22 @@
             }
         }
 
+        // Start countdown to redirect
+        function startCountdown() {
+            let seconds = 5;
+            elements.countdown.textContent = seconds;
+            
+            const timer = setInterval(() => {
+                seconds--;
+                elements.countdown.textContent = seconds;
+                
+                if (seconds <= 0) {
+                    clearInterval(timer);
+                    window.location.href = getEmbeddedAppUrl();
+                }
+            }, 1000);
+        }
+
         // Show debug information
         function showDebugInfo() {
             const urlParams = new URLSearchParams(window.location.search);
@@ -161,7 +172,8 @@
                 })(),
                 shopifyDefined: typeof Shopify !== 'undefined',
                 shopifyAppDefined: typeof ShopifyApp !== 'undefined',
-                correctAppUrl: getEmbeddedAppUrl()
+                correctAppUrl: getEmbeddedAppUrl(),
+                isEmbeddedContext: isInEmbeddedContext()
             };
             elements.debugOutput.innerHTML = `<pre>${JSON.stringify(debugInfo, null, 2)}</pre>`;
         }
@@ -175,11 +187,16 @@
                 elements.loading.style.display = 'none';
                 elements.wrongContext.style.display = 'block';
                 
-                // Set up the correct link
-                elements.openInShopify.onclick = () => {
-                    window.location.href = getEmbeddedAppUrl();
+                // Set up the direct link
+                const correctUrl = getEmbeddedAppUrl();
+                elements.directLink.href = correctUrl;
+                elements.directLink.onclick = (e) => {
+                    e.preventDefault();
+                    window.location.href = correctUrl;
                 };
                 
+                // Start countdown
+                startCountdown();
                 return;
             }
 
