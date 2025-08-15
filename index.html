@@ -39,17 +39,6 @@
             background: #fff8e1;
             border-radius: 4px;
         }
-        .debug-info {
-            font-family: monospace;
-            background: #f4f6f8;
-            padding: 15px;
-            border-radius: 4px;
-            margin-top: 20px;
-            font-size: 14px;
-        }
-        #countdown {
-            font-weight: bold;
-        }
     </style>
 </head>
 <body>
@@ -60,21 +49,22 @@
         </div>
 
         <div id="wrong-context" class="error-card" style="display: none;">
-            <h2>Redirecting to Shopify Admin</h2>
+            <h2>App Access Required</h2>
             <div id="redirect-info">
-                <p>This app must be accessed through your Shopify Admin dashboard.</p>
-                <p>You will be automatically redirected in <span id="countdown">5</span> seconds...</p>
-                <p>Or <a id="direct-link" href="#">click here</a> if you're not redirected.</p>
+                <p>To use this app, please:</p>
+                <ol>
+                    <li>Go to your <a id="admin-link" href="#">Shopify Admin</a></li>
+                    <li>Click on "Apps" in the left sidebar</li>
+                    <li>Select "Neon Flux Multipack"</li>
+                </ol>
+                <p>If you don't see the app listed, you may need to install it first.</p>
             </div>
-            <div class="debug-info">
-                <p><strong>Debug Information:</strong></p>
-                <div id="debug-output"></div>
-            </div>
+            <button id="refresh-button">Refresh Page</button>
         </div>
 
         <div id="app-content" style="display: none;">
             <!-- App content will be loaded here -->
-			My App Here...
+			my app content here...
         </div>
     </div>
 
@@ -82,8 +72,7 @@
         // Configuration - MUST UPDATE THESE
         const CONFIG = {
             shopDomain: 'neon-flux-test.myshopify.com',
-            apiKey: 'a990be1d4450f032a55916c366ee38c2',
-            appHandle: 'neonflux_bundle_app' // From your app URL
+            apiKey: 'a990be1d4450f032a55916c366ee38c2'
         };
 
         // DOM Elements
@@ -91,112 +80,36 @@
             loading: document.getElementById('initial-loading'),
             wrongContext: document.getElementById('wrong-context'),
             appContent: document.getElementById('app-content'),
-            directLink: document.getElementById('direct-link'),
-            countdown: document.getElementById('countdown'),
-            debugOutput: document.getElementById('debug-output')
+            adminLink: document.getElementById('admin-link'),
+            refreshButton: document.getElementById('refresh-button')
         };
 
-        // Decode base64 URL-safe string
-        function decodeBase64UrlSafe(str) {
-            return decodeURIComponent(escape(atob(str.replace(/-/g, '+').replace(/_/g, '/'))));
-        }
-
-        // Get the correct embedded app URL
-        function getEmbeddedAppUrl() {
-            const urlParams = new URLSearchParams(window.location.search);
-            const host = urlParams.get('host');
-            const shop = urlParams.get('shop');
-            
-            if (host && shop) {
-                try {
-                    const decodedHost = decodeBase64UrlSafe(host);
-                    return `https://${decodedHost}/apps/${CONFIG.appHandle}?shop=${shop}&host=${host}`;
-                } catch (e) {
-                    console.error('Error decoding host:', e);
-                }
-            }
-            
-            return `https://${CONFIG.shopDomain}/admin/apps/${CONFIG.appHandle}`;
-        }
+        // Set admin link
+        elements.adminLink.href = `https://${CONFIG.shopDomain}/admin/apps`;
 
         // Check if we're in the correct embedded context
         function isInEmbeddedContext() {
-            // Must have these parameters
+            // Check for required Shopify params
             const urlParams = new URLSearchParams(window.location.search);
-            if (!urlParams.has('host') || !urlParams.has('shop')) {
-                return false;
-            }
+            const hasShopifyParams = urlParams.has('hmac') && 
+                                  urlParams.has('host') && 
+                                  urlParams.has('shop');
             
-            // Must be in an iframe
+            // Check if we're in an iframe
             try {
-                return window.self !== window.top;
+                return hasShopifyParams && window.self !== window.top;
             } catch (e) {
                 // Cross-origin error means we're likely in an iframe
-                return true;
+                return hasShopifyParams;
             }
-        }
-
-        // Start countdown to redirect
-        function startCountdown() {
-            let seconds = 5;
-            elements.countdown.textContent = seconds;
-            
-            const timer = setInterval(() => {
-                seconds--;
-                elements.countdown.textContent = seconds;
-                
-                if (seconds <= 0) {
-                    clearInterval(timer);
-                    window.location.href = getEmbeddedAppUrl();
-                }
-            }, 1000);
-        }
-
-        // Show debug information
-        function showDebugInfo() {
-            const urlParams = new URLSearchParams(window.location.search);
-            const debugInfo = {
-                currentUrl: window.location.href,
-                urlParams: {
-                    host: urlParams.get('host'),
-                    shop: urlParams.get('shop'),
-                    hmac: urlParams.get('hmac'),
-                    timestamp: urlParams.get('timestamp')
-                },
-                inIframe: (function() {
-                    try {
-                        return window.self !== window.top;
-                    } catch (e) {
-                        return "Unknown (cross-origin)";
-                    }
-                })(),
-                shopifyDefined: typeof Shopify !== 'undefined',
-                shopifyAppDefined: typeof ShopifyApp !== 'undefined',
-                correctAppUrl: getEmbeddedAppUrl(),
-                isEmbeddedContext: isInEmbeddedContext()
-            };
-            elements.debugOutput.innerHTML = `<pre>${JSON.stringify(debugInfo, null, 2)}</pre>`;
         }
 
         // Main initialization function
         async function initializeApp() {
-            showDebugInfo();
-            
             // First verify we're in the correct context
             if (!isInEmbeddedContext()) {
                 elements.loading.style.display = 'none';
                 elements.wrongContext.style.display = 'block';
-                
-                // Set up the direct link
-                const correctUrl = getEmbeddedAppUrl();
-                elements.directLink.href = correctUrl;
-                elements.directLink.onclick = (e) => {
-                    e.preventDefault();
-                    window.location.href = correctUrl;
-                };
-                
-                // Start countdown
-                startCountdown();
                 return;
             }
 
@@ -259,7 +172,7 @@
                 elements.wrongContext.innerHTML += `
                     <div style="margin-top: 20px; padding: 15px; background: white; border-radius: 4px;">
                         <p><strong>Error:</strong> ${error.message}</p>
-                        <p>Try <a href="${getEmbeddedAppUrl()}">opening the app in Shopify Admin</a></p>
+                        <p>Please contact support if this issue persists.</p>
                     </div>
                 `;
             }
@@ -283,6 +196,9 @@
                 document.head.appendChild(script);
             });
         }
+
+        // Event listeners
+        elements.refreshButton.addEventListener('click', () => window.location.reload());
 
         // Start the app
         initializeApp();
